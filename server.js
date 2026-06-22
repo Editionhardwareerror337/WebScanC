@@ -8,6 +8,7 @@ const { router } = require('./routes/scan');
 const { webhookRouter } = require('./routes/webhook');
 const { router: monitoringRouter } = require('./routes/monitoring');
 const { router: checkoutRouter } = require('./routes/checkout');
+const { router: pdfRouter } = require('./routes/pdf');
 const { initDB } = require('./services/db');
 const { startCron } = require('./services/cron');
 
@@ -56,6 +57,7 @@ app.use((req, res, next) => {
 app.use('/api', router);
 app.use('/api', monitoringRouter);
 app.use('/api', checkoutRouter);
+app.use('/api', pdfRouter);
 
 // Rutas principales
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'landing.html')));

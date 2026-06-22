@@ -438,72 +438,49 @@ function exportCSV(){
   showToast('CSV descargado','ok');
 }
 
-function exportPDF(){
+async function exportPDF(){
   if(!scanData) return;
   if(!getPlanInfo().pdf){ openModal('pdf'); return; }
-  const {domain,sc,results}=scanData;
-  const date=new Date().toLocaleDateString('es-ES',{day:'2-digit',month:'long',year:'numeric'});
-  const wl=getCurrentPlan()==='agency';
-  let cats='';
-  results.forEach(cat=>{
-    cats+=`<h2 style="font-size:13px;font-weight:600;color:#0f0f14;margin:24px 0 10px;padding-bottom:6px;border-bottom:2px solid #e6e4df;font-family:Arial">${cat.icon} ${cat.cat}</h2>`;
-    cat.results.forEach(r=>{
-      const sevColor={critical:'#D93025',high:'#B45309',medium:'#2563EB',low:'#6B7280'}[r.severity]||'#6B7280';
-      cats+=`<div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid #f0f0f0;align-items:flex-start;font-family:Arial">
-        <span style="font-size:12px;flex-shrink:0;margin-top:2px">${r.pass?'OK':'X'}</span>
-        <div style="flex:1">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">
-            <strong style="font-size:12px;color:#0f0f14">${r.name}</strong>
-            ${!r.pass?`<span style="font-size:9px;font-weight:500;padding:1px 6px;border-radius:20px;background:${sevColor}22;color:${sevColor};border:1px solid ${sevColor}44">${(r.severity||'MEDIUM').toUpperCase()}</span>`:''}
-          </div>
-          <div style="font-size:11px;color:#8b8b9e;margin-bottom:2px">${r.desc}</div>
-          <code style="font-size:10px;color:${r.pass?'#00875a':'#D93025'}">${r.value}</code>
-          ${!r.pass&&r.fix?`<div style="font-size:10px;color:#3D3D4E;background:#f8f7f4;padding:6px 8px;border-radius:4px;margin-top:4px;border-left:2px solid #0066FF">Solución: ${r.fix}</div>`:''}
-        </div>
-      </div>`;
+
+  const btn = document.querySelector('.primary-export');
+  const originalText = btn ? btn.innerHTML : '';
+  if(btn){ btn.disabled = true; btn.innerHTML = '⏳ Generando PDF…'; }
+
+  try {
+    const res = await fetch('/api/pdf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        licenseCode: getLicenseCode(),
+        domain: scanData.domain,
+        scannedAt: scanData.scannedAt || new Date().toISOString(),
+        summary: scanData.sc,
+        categories: scanData.results,
+      }),
     });
-  });
-  const critical=results.flatMap(c=>c.results).filter(r=>!r.pass&&r.severity==='critical').length;
-  const high=results.flatMap(c=>c.results).filter(r=>!r.pass&&r.severity==='high').length;
-  const html=`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>WebScan - ${domain}</title></head>
-  <body style="margin:40px;font-family:Arial,sans-serif;color:#0f0f14;font-size:13px;max-width:800px">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding-bottom:16px;border-bottom:2px solid #0f0f14">
-      <div><h1 style="font-size:20px;font-weight:700;margin:0">${wl?'Informe de Seguridad Web':'WebScan'}</h1><div style="font-size:11px;color:#8b8b9e;margin-top:2px">${wl?'':'Auditoría de seguridad automatizada'}</div></div>
-      <div style="text-align:right"><div style="font-size:11px;color:#8b8b9e">${date}</div><div style="font-size:11px;color:#8b8b9e">${domain}</div></div>
-    </div>
-    <div style="background:#f8f7f4;border-radius:8px;padding:16px 20px;margin:20px 0;display:flex;gap:24px;align-items:center;flex-wrap:wrap">
-      <div style="text-align:center"><div style="font-size:40px;font-weight:700;color:${sc.color};font-family:monospace;line-height:1">${sc.letter}</div><div style="font-size:11px;color:#8b8b9e">Score ${sc.score}/100</div></div>
-      <div style="flex:1;display:flex;gap:20px;flex-wrap:wrap">
-        <div><div style="font-size:11px;color:#8b8b9e">Dominio</div><div style="font-weight:600">${domain}</div></div>
-        <div><div style="font-size:11px;color:#8b8b9e">Correctas</div><div style="font-weight:600;color:#00875a">${sc.passed}</div></div>
-        <div><div style="font-size:11px;color:#8b8b9e">Problemas</div><div style="font-weight:600;color:#D93025">${sc.failed}</div></div>
-        <div><div style="font-size:11px;color:#8b8b9e">Críticos</div><div style="font-weight:600;color:#D93025">${critical}</div></div>
-        <div><div style="font-size:11px;color:#8b8b9e">Altos</div><div style="font-weight:600;color:#B45309">${high}</div></div>
-      </div>
-    </div>
-    ${cats}
-    <div style="margin-top:40px;padding-top:16px;border-top:1px solid #e6e4df;font-size:11px;color:#c4c4cf;display:flex;justify-content:space-between">
-      <span>${wl?'Informe generado con WebScan':'WebScan - webscan.app'}</span><span>${date}</span>
-    </div>
-    <script>window.onload=function(){setTimeout(function(){window.print();},300);};</script>
-  </body></html>`;
 
-  // Usamos un Blob URL en vez de document.write (deprecado y poco fiable en Safari).
-  // Sin 'noopener' para mantener la referencia a la ventana y poder cerrarla despues.
-  const blob = new Blob([html], { type: 'text/html' });
-  const blobUrl = URL.createObjectURL(blob);
-  const w = window.open(blobUrl, '_blank');
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'Error generando el PDF');
+    }
 
-  if (!w) {
-    // El navegador bloqueo el popup
-    showToast('Tu navegador bloqueó la ventana. Permite popups para webscanc-production.up.railway.app', 'error');
-    URL.revokeObjectURL(blobUrl);
-    return;
+    // Descargar el PDF como archivo
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `webscan-${scanData.domain}-${new Date().toISOString().slice(0,10)}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    showToast('✅ PDF descargado correctamente', 'ok');
+
+  } catch(err) {
+    showToast('❌ ' + (err.message || 'No se pudo generar el PDF'), 'error');
+  } finally {
+    if(btn){ btn.disabled = false; btn.innerHTML = originalText; }
   }
-
-  // Liberar memoria del blob una vez cargado (con margen de tiempo para que imprima)
-  setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
-  showToast('Informe PDF generado — usa Cmd+P / Ctrl+P para guardarlo','ok');
 }
 
 function copyShareLink(){
