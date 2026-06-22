@@ -668,6 +668,10 @@ async function runDemoScan() {
           </div>`;
         }).join('')}
       </div>
+      <div style="padding:16px 20px; border-top:1px solid var(--line-soft); display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;">
+        <span style="font-size:13px; color:var(--text-1)">¿Quieres ver los fallos concretos y cómo solucionarlos?</span>
+        <a href="/app" style="background:var(--primary); color:#fff; font-weight:600; font-size:13.5px; padding:10px 18px; border-radius:7px; white-space:nowrap; text-decoration:none;">Ver análisis completo →</a>
+      </div>
     `;
     resultBox.classList.add('show');
     resultBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
