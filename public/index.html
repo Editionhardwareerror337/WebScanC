@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WebScan — Auditoría de seguridad web en 60 segundos</title>
+<meta name="description" content="Analiza SSL, cabeceras, DNS, malware y configuración de cualquier web en segundos. Informes PDF, monitorización automática y alertas. Desde gratis.">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400..700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+
+<style>
+/* ============================================================
+   TOKENS — identidad de seguridad técnica: azul frío + verde "pass"
+   en vez de violeta/SaaS genérico. Fondo casi negro azulado.
+   ============================================================ */
+:root{
+  --bg-0:#06080a;
+  --bg-1:#0a0d11;
+  --bg-2:#0f1318;
+  --line:#1c2229;
+  --line-soft:#161a1f;
+
+  --primary:#3b82f6;
+  --primary-dim:#1d4ed8;
+  --secondary:#22d3ee;
+  --ok:#34d399;
+  --warn:#fbbf24;
+  --crit:#f87171;
+
+  --text-0:#f1f5f9;
+  --text-1:#94a3b8;
+  --text-2:#5b6672;
+
+  --font-display:'Space Grotesk', sans-serif;
+  --font-body:'Inter', sans-serif;
+  --font-mono:'JetBrains Mono', monospace;
+
+  --container:1180px;
+  --gutter:clamp(20px,5vw,64px);
+  --ease-out:cubic-bezier(.16,1,.3,1);
+}
+
+*{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  background:var(--bg-0); color:var(--text-0); font-family:var(--font-body);
+  -webkit-font-smoothing:antialiased; overflow-x:hidden;
+}
+img,svg{display:block;max-width:100%;}
+a{color:inherit;text-decoration:none;}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;}
+ul{list-style:none;}
+::selection{background:var(--primary);color:#fff;}
+:focus-visible{outline:2px solid var(--secondary);outline-offset:3px;border-radius:4px;}
+
+@media (prefers-reduced-motion: reduce){
+  *{animation-duration:.01ms !important; transition-duration:.01ms !important; scroll-behavior:auto !important;}
+}
+
+.wrap{max-width:var(--container); margin:0 auto; padding-left:var(--gutter); padding-right:var(--gutter);}
+
+.eyebrow{
+  font-family:var(--font-mono); font-size:12px; letter-spacing:.13em; text-transform:uppercase;
+  color:var(--secondary); display:inline-flex; align-items:center; gap:9px;
+}
+.eyebrow::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--secondary);box-shadow:0 0 0 3px rgba(34,211,238,.15);}
+
+/* ============================================================
+   NAV
+   ============================================================ */
+header{
+  position:fixed; top:0; left:0; right:0; z-index:500;
+  background:rgba(6,8,10,.72); backdrop-filter:blur(14px) saturate(140%);
+  border-bottom:1px solid transparent; transition:border-color .3s var(--ease-out);
+}
+header.scrolled{border-bottom-color:var(--line);}
+.nav-inner{display:flex; align-items:center; justify-content:space-between; padding:17px 0;}
+.logo{font-family:var(--font-display); font-weight:700; font-size:18px; display:flex; align-items:center; gap:8px; letter-spacing:-.01em;}
+.logo .ic{width:18px;height:18px;color:var(--primary);}
+.nav-links{display:flex; align-items:center; gap:30px;}
+.nav-links a{font-size:13.5px; color:var(--text-1); transition:color .2s;}
+.nav-links a:hover{color:var(--text-0);}
+.nav-cta{display:flex; align-items:center; gap:14px;}
+.btn{display:inline-flex; align-items:center; justify-content:center; gap:8px; font-size:13.5px; font-weight:600; padding:10px 19px; border-radius:7px; transition:transform .2s var(--ease-out), box-shadow .2s, background .2s, border-color .2s; white-space:nowrap;}
+.btn-primary{background:var(--primary); color:#fff;}
+.btn-primary:hover{transform:translateY(-1px); box-shadow:0 8px 22px -8px rgba(59,130,246,.5);}
+.btn-ghost{border:1px solid var(--line); color:var(--text-0);}
+.btn-ghost:hover{border-color:var(--text-2); background:var(--bg-2);}
+.btn-lg{padding:14px 26px; font-size:14.5px; border-radius:8px;}
+.btn[disabled]{opacity:.55; pointer-events:none;}
+.btn .spin{width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+@media (max-width:920px){ .nav-links{display:none;} }
+
+/* ============================================================
+   HERO — signature element: panel de escaneo en vivo, input real
+   ============================================================ */
+#hero{position:relative; min-height:100vh; display:flex; align-items:center; padding:150px 0 70px; overflow:hidden;}
+.hero-bg{
+  position:absolute; inset:0; z-index:0;
+  background:
+    radial-gradient(620px 400px at 20% 6%, rgba(59,130,246,.18), transparent 60%),
+    radial-gradient(520px 360px at 86% 26%, rgba(34,211,238,.12), transparent 60%);
+}
+.hero-grid{
+  position:absolute; inset:0; z-index:0;
+  background-image:linear-gradient(rgba(255,255,255,.022) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.022) 1px, transparent 1px);
+  background-size:60px 60px;
+  mask-image:radial-gradient(ellipse 70% 60% at 50% 25%, black 25%, transparent 75%);
+}
+.hero-inner{position:relative; z-index:1; text-align:center; max-width:840px; margin:0 auto;}
+.hero-title{
+  font-family:var(--font-display); font-weight:700; font-size:clamp(32px,5.4vw,58px);
+  line-height:1.06; letter-spacing:-.025em; margin-top:22px;
+}
+.hero-title .hl{
+  background:linear-gradient(100deg, var(--secondary) 10%, var(--primary) 75%);
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+}
+.hero-sub{margin:22px auto 0; font-size:17px; line-height:1.6; color:var(--text-1); max-width:52ch;}
+
+/* scan input — the actual product, embedded in hero */
+.scan-box{
+  margin:38px auto 0; max-width:580px;
+  display:flex; gap:10px; align-items:center;
+  background:var(--bg-2); border:1px solid var(--line); border-radius:11px;
+  padding:8px 8px 8px 18px;
+}
+.scan-box input{
+  flex:1; background:none; border:none; outline:none; color:var(--text-0);
+  font-family:var(--font-mono); font-size:14px;
+}
+.scan-box input::placeholder{color:var(--text-2);}
+.scan-box button{
+  background:var(--primary); color:#fff; font-weight:600; font-size:13.5px;
+  padding:11px 20px; border-radius:7px; white-space:nowrap; display:flex; align-items:center; gap:8px;
+}
+.scan-box button:hover{box-shadow:0 6px 18px -6px rgba(59,130,246,.5);}
+.scan-hint{margin-top:13px; font-family:var(--font-mono); font-size:11.5px; color:var(--text-2);}
+.scan-hint b{color:var(--ok);}
+
+/* live result panel, appears after a demo scan */
+.scan-result{
+  margin:30px auto 0; max-width:680px; text-align:left;
+  background:var(--bg-1); border:1px solid var(--line); border-radius:14px;
+  overflow:hidden; opacity:0; max-height:0; transition:opacity .4s ease;
+}
+.scan-result.show{opacity:1; max-height:600px;}
+.sr-head{display:flex; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid var(--line-soft);}
+.sr-domain{font-family:var(--font-mono); font-size:13px; color:var(--text-1);}
+.sr-score{display:flex; align-items:center; gap:10px;}
+.sr-letter{
+  width:34px;height:34px;border-radius:9px; display:flex; align-items:center; justify-content:center;
+  font-family:var(--font-display); font-weight:700; font-size:16px;
+}
+.sr-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--line-soft);}
+.sr-cat{background:var(--bg-1); padding:16px 18px;}
+.sr-cat .cn{font-size:11.5px; color:var(--text-1); display:flex; align-items:center; gap:7px; margin-bottom:6px;}
+.sr-cat .cv{font-family:var(--font-mono); font-size:12px;}
+.cv.pass{color:var(--ok);}
+.cv.fail{color:var(--crit);}
+
+@media (max-width:600px){
+  .scan-box{flex-direction:column; align-items:stretch; padding:14px;}
+  .sr-grid{grid-template-columns:1fr;}
+}
+
+/* ============================================================
+   TRUST / METRICS
+   ============================================================ */
+#metrics{padding:60px 0; border-top:1px solid var(--line-soft); border-bottom:1px solid var(--line-soft);}
+.metrics-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--line-soft); border:1px solid var(--line-soft); border-radius:14px; overflow:hidden;}
+.metric{background:var(--bg-0); padding:30px 24px; text-align:center;}
+.metric-num{font-family:var(--font-display); font-weight:700; font-size:clamp(24px,2.8vw,36px); letter-spacing:-.02em;}
+.metric-num .unit{color:var(--secondary);}
+.metric-lbl{margin-top:6px; font-size:12.5px; color:var(--text-1);}
+@media (max-width:760px){ .metrics-grid{grid-template-columns:1fr 1fr;} }
+
+/* ============================================================
+   SECTION SHELL
+   ============================================================ */
+.section{padding:120px 0;}
+.section-head{display:grid; grid-template-columns:76px 1fr; gap:28px; margin-bottom:56px; align-items:start;}
+.section-num{font-family:var(--font-mono); font-size:13px; color:var(--text-2); padding-top:9px; position:relative;}
+.section-num::after{content:''; position:absolute; left:0; top:30px; width:1px; height:40px; background:linear-gradient(var(--line), transparent);}
+.section-title{font-family:var(--font-display); font-weight:700; font-size:clamp(24px,3vw,38px); line-height:1.16; letter-spacing:-.02em; max-width:20ch;}
+.section-title .dim{color:var(--text-2);}
+.section-sub{margin-top:14px; font-size:15px; color:var(--text-1); max-width:50ch;}
+
+@media (max-width:680px){
+  .section{padding:80px 0;}
+  .section-head{grid-template-columns:1fr; gap:12px;}
+}
+
+/* ============================================================
+   01 — CATEGORIES (what we check)
+   ============================================================ */
+.cat-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--line-soft); border:1px solid var(--line-soft); border-radius:14px; overflow:hidden;}
+.cat-card{background:var(--bg-1); padding:26px 24px;}
+.cat-card .ci{font-size:22px; margin-bottom:14px; display:block;}
+.cat-card .ct{font-weight:600; font-size:15px; margin-bottom:6px;}
+.cat-card .cd{font-size:13px; color:var(--text-1); line-height:1.55;}
+@media (max-width:860px){ .cat-grid{grid-template-columns:1fr 1fr;} }
+@media (max-width:560px){ .cat-grid{grid-template-columns:1fr;} }
+
+/* ============================================================
+   02 — PLANS COMPARISON STRIP
+   ============================================================ */
+.plan-flow{display:grid; grid-template-columns:1fr auto 1fr auto 1fr; gap:18px; align-items:center;}
+.plan-step{background:var(--bg-1); border:1px solid var(--line); border-radius:12px; padding:24px;}
+.plan-step .pt{font-family:var(--font-mono); font-size:11px; color:var(--text-2); text-transform:uppercase; letter-spacing:.08em;}
+.plan-step h3{font-family:var(--font-display); font-weight:600; font-size:18px; margin:8px 0 10px;}
+.plan-step p{font-size:13px; color:var(--text-1); line-height:1.5;}
+.plan-arrow{color:var(--text-2); font-size:18px;}
+@media (max-width:920px){
+  .plan-flow{grid-template-columns:1fr; gap:10px;}
+  .plan-arrow{transform:rotate(90deg); justify-self:center;}
+}
+
+/* ============================================================
+   03 — PRICING
+   ============================================================ */
+.pricing-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:20px;}
+.price-card{
+  background:var(--bg-1); border:1px solid var(--line); border-radius:16px; padding:32px 28px;
+  display:flex; flex-direction:column;
+}
+.price-card.featured{border-color:var(--primary); background:linear-gradient(180deg, rgba(59,130,246,.06), var(--bg-1) 40%); position:relative;}
+.price-card.featured::before{
+  content:'MÁS POPULAR'; position:absolute; top:-11px; left:28px;
+  background:var(--primary); color:#fff; font-family:var(--font-mono); font-size:10px; letter-spacing:.08em;
+  padding:4px 10px; border-radius:5px;
+}
+.pc-name{font-family:var(--font-display); font-weight:600; font-size:18px;}
+.pc-desc{font-size:13px; color:var(--text-1); margin-top:6px; min-height:34px;}
+.pc-price{display:flex; align-items:baseline; gap:6px; margin:20px 0 22px;}
+.pc-price .amt{font-family:var(--font-display); font-weight:700; font-size:38px; letter-spacing:-.02em;}
+.pc-price .per{font-size:13px; color:var(--text-2);}
+.pc-feats{display:flex; flex-direction:column; gap:11px; margin-bottom:26px; flex:1;}
+.pc-feats li{display:flex; align-items:flex-start; gap:9px; font-size:13.5px; color:var(--text-1); list-style:none;}
+.pc-feats svg{flex-shrink:0; margin-top:2px; color:var(--ok);}
+.pc-btn{width:100%; padding:13px; border-radius:8px; font-weight:600; font-size:14px; text-align:center;}
+.pc-btn.primary{background:var(--primary); color:#fff;}
+.pc-btn.primary:hover{box-shadow:0 8px 22px -8px rgba(59,130,246,.5);}
+.pc-btn.ghost{border:1px solid var(--line); color:var(--text-0);}
+.pc-btn.ghost:hover{border-color:var(--text-2);}
+.pricing-note{text-align:center; margin-top:26px; font-size:12.5px; color:var(--text-2);}
+
+@media (max-width:920px){ .pricing-grid{grid-template-columns:1fr; max-width:420px; margin:0 auto;} }
+
+/* ============================================================
+   04 — FAQ
+   ============================================================ */
+.faq-list{max-width:760px;}
+.faq-item{border-bottom:1px solid var(--line-soft);}
+.faq-q{
+  width:100%; display:flex; align-items:center; justify-content:space-between;
+  padding:22px 4px; font-size:15.5px; font-weight:500; text-align:left; cursor:pointer;
+}
+.faq-q .plus{font-family:var(--font-mono); color:var(--text-2); font-size:18px; transition:transform .25s var(--ease-out);}
+.faq-item.open .plus{transform:rotate(45deg); color:var(--secondary);}
+.faq-a{max-height:0; overflow:hidden; transition:max-height .3s var(--ease-out);}
+.faq-a p{padding:0 4px 22px; font-size:14px; color:var(--text-1); line-height:1.65; max-width:62ch;}
+
+/* ============================================================
+   CTA FINAL
+   ============================================================ */
+#cta-final{
+  padding:130px 0; text-align:center; position:relative; overflow:hidden;
+  border-top:1px solid var(--line-soft);
+}
+.cta-bg{position:absolute; inset:0; background:radial-gradient(560px 360px at 50% 0%, rgba(59,130,246,.16), transparent 65%);}
+.cta-title{position:relative; font-family:var(--font-display); font-weight:700; font-size:clamp(28px,4.4vw,48px); letter-spacing:-.02em; line-height:1.12; max-width:16ch; margin:0 auto;}
+.cta-sub{position:relative; margin:18px auto 0; color:var(--text-1); font-size:15.5px; max-width:46ch;}
+.cta-actions{position:relative; margin-top:34px; display:flex; gap:14px; justify-content:center; flex-wrap:wrap;}
+
+/* ============================================================
+   FOOTER
+   ============================================================ */
+footer{border-top:1px solid var(--line-soft); padding:60px 0 36px;}
+.footer-top{display:grid; grid-template-columns:1.4fr repeat(3,1fr); gap:40px;}
+.footer-brand .logo{margin-bottom:14px;}
+.footer-brand p{font-size:13px; color:var(--text-1); max-width:32ch; line-height:1.6;}
+.footer-col h4{font-family:var(--font-mono); font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--text-2); margin-bottom:14px;}
+.footer-col a{display:block; font-size:13.5px; color:var(--text-1); padding:6px 0; transition:color .2s;}
+.footer-col a:hover{color:var(--text-0);}
+.footer-bottom{margin-top:50px; padding-top:24px; border-top:1px solid var(--line-soft); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px;}
+.footer-bottom span{font-size:12.5px; color:var(--text-2);}
+@media (max-width:780px){ .footer-top{grid-template-columns:1fr 1fr; gap:32px;} }
+@media (max-width:520px){ .footer-top{grid-template-columns:1fr;} }
+</style>
+</head>
+<body>
+
+<header id="site-header">
+  <div class="wrap nav-inner">
+    <a href="#hero" class="logo">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2 4 5v6c0 5.2 3.4 9.7 8 11 4.6-1.3 8-5.8 8-11V5l-8-3Z"/><path d="m9 12 2 2 4-4"/></svg>
+      WebScan
+    </a>
+    <nav class="nav-links">
+      <a href="#categories">Qué analizamos</a>
+      <a href="#pricing">Precios</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <div class="nav-cta">
+      <a href="#scan-box" class="btn btn-ghost">Probar gratis</a>
+      <a href="#pricing" class="btn btn-primary">Ver planes</a>
+    </div>
+  </div>
+</header>
+
+<main>
+
+<!-- ============================================================
+     HERO
+     ============================================================ -->
+<section id="hero">
+  <div class="hero-bg"></div>
+  <div class="hero-grid"></div>
+  <div class="wrap hero-inner">
+    <span class="eyebrow">Auditoría de seguridad automática</span>
+    <h1 class="hero-title">Tu web tiene huecos de seguridad.<br><span class="hl">Te decimos exactamente cuáles.</span></h1>
+    <p class="hero-sub">SSL, cabeceras, DNS, malware, cookies y configuración expuesta — más de 30 comprobaciones reales en menos de 60 segundos. Sin instalar nada.</p>
+
+    <div class="scan-box" id="scan-box">
+      <input type="text" id="scan-input" placeholder="tuempresa.com" autocomplete="off">
+      <button id="scan-btn" type="button">Analizar ahora →</button>
+    </div>
+    <p class="scan-hint"><b>●</b> 3 análisis gratis al mes · sin tarjeta · resultado en pantalla</p>
+
+    <div class="scan-result" id="scan-result"></div>
+  </div>
+</section>
+
+<!-- ============================================================
+     METRICS
+     ============================================================ -->
+<section id="metrics">
+  <div class="wrap">
+    <div class="metrics-grid">
+      <div class="metric"><div class="metric-num">30<span class="unit">+</span></div><div class="metric-lbl">Comprobaciones por análisis</div></div>
+      <div class="metric"><div class="metric-num">9</div><div class="metric-lbl">Categorías de seguridad</div></div>
+      <div class="metric"><div class="metric-num">&lt;60<span class="unit">s</span></div><div class="metric-lbl">Tiempo medio de análisis</div></div>
+      <div class="metric"><div class="metric-num">24<span class="unit">/7</span></div><div class="metric-lbl">Monitorización automática</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     01 — CATEGORIES
+     ============================================================ -->
+<section id="categories" class="section">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="section-num">01</span>
+      <div>
+        <h2 class="section-title">Lo que <span class="dim">revisamos</span> en cada análisis.</h2>
+        <p class="section-sub">No es un único check de SSL. Es una auditoría real, categoría por categoría, con la solución técnica exacta para cada fallo.</p>
+      </div>
+    </div>
+
+    <div class="cat-grid" id="cat-grid"></div>
+  </div>
+</section>
+
+<!-- ============================================================
+     02 — HOW IT WORKS / PLAN FLOW
+     ============================================================ -->
+<section id="how" class="section" style="background:var(--bg-1); border-top:1px solid var(--line-soft); border-bottom:1px solid var(--line-soft);">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="section-num">02</span>
+      <div>
+        <h2 class="section-title">De URL a <span class="dim">informe accionable.</span></h2>
+        <p class="section-sub">Sin agentes que instalar, sin acceso al servidor. Solo la URL.</p>
+      </div>
+    </div>
+
+    <div class="plan-flow">
+      <div class="plan-step">
+        <span class="pt">Paso 1</span>
+        <h3>Pega tu dominio</h3>
+        <p>WebScan analiza SSL, cabeceras, DNS, cookies y archivos expuestos desde fuera, igual que vería un atacante.</p>
+      </div>
+      <span class="plan-arrow">→</span>
+      <div class="plan-step">
+        <span class="pt">Paso 2</span>
+        <h3>Recibe el score</h3>
+        <p>Nota de A a D, con cada fallo explicado y su fix técnico exacto — sin jerga, listo para pasarle a tu equipo.</p>
+      </div>
+      <span class="plan-arrow">→</span>
+      <div class="plan-step">
+        <span class="pt">Paso 3</span>
+        <h3>Monitoriza y exporta</h3>
+        <p>En Pro y Agencia, WebScan vuelve a revisar tu dominio automáticamente y te avisa por email si algo empeora.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     03 — PRICING
+     ============================================================ -->
+<section id="pricing" class="section">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="section-num">03</span>
+      <div>
+        <h2 class="section-title">Precios <span class="dim">claros, sin letra pequeña.</span></h2>
+        <p class="section-sub">Pagos vía Stripe. Cancela cuando quieras, sin permanencia.</p>
+      </div>
+    </div>
+
+    <div class="pricing-grid" id="pricing-grid"></div>
+    <p class="pricing-note">¿Gestionas webs de clientes? El plan Agencia incluye informes con tu marca y acceso API.</p>
+  </div>
+</section>
+
+<!-- ============================================================
+     04 — FAQ
+     ============================================================ -->
+<section id="faq" class="section">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="section-num">04</span>
+      <h2 class="section-title">Preguntas <span class="dim">frecuentes.</span></h2>
+    </div>
+    <div class="faq-list" id="faq-list"></div>
+  </div>
+</section>
+
+<!-- ============================================================
+     CTA FINAL
+     ============================================================ -->
+<section id="cta-final">
+  <div class="cta-bg"></div>
+  <div class="wrap">
+    <h2 class="cta-title">Audita tu web antes de que lo haga alguien con peores intenciones.</h2>
+    <p class="cta-sub">3 análisis gratis al mes, sin tarjeta de crédito.</p>
+    <div class="cta-actions">
+      <a href="#scan-box" class="btn btn-primary btn-lg">Analizar mi web →</a>
+      <a href="#pricing" class="btn btn-ghost btn-lg">Ver planes</a>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="footer-top">
+      <div class="footer-brand">
+        <a href="#hero" class="logo">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2 4 5v6c0 5.2 3.4 9.7 8 11 4.6-1.3 8-5.8 8-11V5l-8-3Z"/><path d="m9 12 2 2 4-4"/></svg>
+          WebScan
+        </a>
+        <p>Auditoría de seguridad web automática. SSL, cabeceras, DNS, malware y configuración expuesta en un solo informe.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Producto</h4>
+        <a href="#categories">Qué analizamos</a>
+        <a href="#pricing">Precios</a>
+        <a href="#scan-box">Análisis gratis</a>
+      </div>
+      <div class="footer-col">
+        <h4>Cuenta</h4>
+        <a href="/">Acceder al panel</a>
+        <a href="#faq">Activar licencia</a>
+      </div>
+      <div class="footer-col">
+        <h4>Legal</h4>
+        <a href="#faq">Términos</a>
+        <a href="#faq">Privacidad</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2026 WebScan. Todos los derechos reservados.</span>
+      <span>Hecho en Gran Canaria 🇮🇨</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+/* ============================================================
+   DATA LAYER
+   ============================================================ */
+const DATA = {
+  categories: [
+    { ic:'🔒', t:'SSL / TLS', d:'Certificado válido, versión TLS moderna, expiración y cadena completa.' },
+    { ic:'📋', t:'Cabeceras HTTP', d:'CSP, X-Frame-Options, HSTS, Referrer-Policy y Permissions-Policy.' },
+    { ic:'🌐', t:'DNS y email', d:'SPF, DMARC, DKIM y DNSSEC — evita que suplanten tu dominio.' },
+    { ic:'🛡️', t:'Reputación y malware', d:'Google Safe Browsing, VirusTotal y listas negras de spam.' },
+    { ic:'🍪', t:'Seguridad de cookies', d:'Flags Secure, HttpOnly y SameSite en todas las cookies.' },
+    { ic:'⚙️', t:'Archivos expuestos', d:'.git, .env y paneles de administración accesibles desde fuera.' },
+  ],
+  plans: [
+    {
+      key:'free', name:'Free', desc:'Para probar el producto.', price:'0€', per:'/mes',
+      feats:['3 análisis al mes','Score y categorías completas','Sin informe PDF','Sin monitorización'],
+      cta:'Empezar gratis', style:'ghost', action:'scroll'
+    },
+    {
+      key:'pro', name:'Pro', desc:'Para freelancers y webs propias.', price:'50€', per:'/mes', featured:true,
+      feats:['Análisis ilimitados','Informe PDF profesional','Panel con histórico','Monitorización semanal automática','Hasta 10 dominios','Alertas por email ante cambios'],
+      cta:'Empezar Pro', style:'primary', action:'checkout'
+    },
+    {
+      key:'agency', name:'Agencia', desc:'Para gestionar clientes.', price:'100€', per:'/mes',
+      feats:['Todo lo de Pro','Informes con tu marca (white-label)','Dominios ilimitados','Acceso API completo','Soporte prioritario'],
+      cta:'Empezar Agencia', style:'ghost', action:'checkout'
+    },
+  ],
+  faq: [
+    { q:'¿Cómo funciona el análisis gratuito?', a:'Pegas tu dominio y WebScan ejecuta más de 30 comprobaciones reales — SSL, cabeceras, DNS, cookies, malware y archivos expuestos. El plan Free incluye 3 análisis al mes, sin tarjeta de crédito.' },
+    { q:'¿Qué incluye exactamente la monitorización?', a:'En Pro y Agencia, WebScan vuelve a analizar tus dominios automáticamente (semanal en Pro) y te avisa por email si el score baja de forma significativa o aparece un fallo crítico nuevo.' },
+    { q:'¿Puedo cancelar cuando quiera?', a:'Sí. La suscripción es mensual y se gestiona directamente desde Stripe, sin permanencia ni penalización.' },
+    { q:'¿Cómo se activa el plan tras pagar?', a:'Tras el pago recibirás un email con un código de activación único. Lo introduces en el panel de WebScan y tu plan queda activo al instante.' },
+    { q:'¿Qué diferencia hay entre Pro y Agencia?', a:'Agencia añade informes con tu marca (sin logo de WebScan), dominios ilimitados y acceso completo a la API para integrar los análisis en tus propios flujos.' },
+    { q:'¿WebScan necesita acceso a mi servidor?', a:'No. Todos los análisis se hacen desde fuera, igual que lo vería cualquier visitante o atacante — no se instala nada ni se pide acceso al hosting.' },
+  ],
+};
+
+/* ============================================================
+   RENDER
+   ============================================================ */
+document.getElementById('cat-grid').innerHTML = DATA.categories.map(c => `
+  <div class="cat-card">
+    <span class="ci">${c.ic}</span>
+    <div class="ct">${c.t}</div>
+    <div class="cd">${c.d}</div>
+  </div>`).join('');
+
+document.getElementById('pricing-grid').innerHTML = DATA.plans.map(p => `
+  <div class="price-card ${p.featured ? 'featured' : ''}">
+    <div class="pc-name">${p.name}</div>
+    <div class="pc-desc">${p.desc}</div>
+    <div class="pc-price"><span class="amt">${p.price}</span><span class="per">${p.per}</span></div>
+    <ul class="pc-feats">
+      ${p.feats.map(f => `<li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>${f}</li>`).join('')}
+    </ul>
+    <button class="pc-btn ${p.style}" data-plan="${p.key}" data-action="${p.action}">${p.cta}</button>
+  </div>`).join('');
+
+document.getElementById('faq-list').innerHTML = DATA.faq.map((item,i) => `
+  <div class="faq-item" data-i="${i}">
+    <button class="faq-q" type="button">
+      <span>${item.q}</span><span class="plus">+</span>
+    </button>
+    <div class="faq-a"><p>${item.a}</p></div>
+  </div>`).join('');
+
+/* ============================================================
+   FAQ ACCORDION
+   ============================================================ */
+document.querySelectorAll('.faq-item').forEach(item => {
+  const q = item.querySelector('.faq-q');
+  const a = item.querySelector('.faq-a');
+  q.addEventListener('click', () => {
+    const isOpen = item.classList.contains('open');
+    document.querySelectorAll('.faq-item.open').forEach(other => {
+      other.classList.remove('open');
+      other.querySelector('.faq-a').style.maxHeight = null;
+    });
+    if (!isOpen) {
+      item.classList.add('open');
+      a.style.maxHeight = a.scrollHeight + 'px';
+    }
+  });
+});
+
+/* ============================================================
+   CHECKOUT — llamada real al backend /api/checkout
+   ============================================================ */
+async function startCheckout(plan, btn) {
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span> Conectando con Stripe…';
+
+  try {
+    const res = await fetch('/api/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ plan }),
+    });
+    const data = await res.json();
+
+    if (res.ok && data.url) {
+      window.location.href = data.url;
+      return;
+    }
+    throw new Error(data.message || 'No se pudo iniciar el pago.');
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = originalText;
+    alert(err.message || 'No se pudo conectar con el sistema de pago. Inténtalo de nuevo.');
+  }
+}
+
+document.querySelectorAll('.pc-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const plan = btn.dataset.plan;
+    const action = btn.dataset.action;
+    if (action === 'scroll') {
+      document.getElementById('scan-box').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      document.getElementById('scan-input').focus();
+      return;
+    }
+    startCheckout(plan, btn);
+  });
+});
+
+/* ============================================================
+   DEMO SCAN — llamada real a /api/scan, muestra resultado en hero
+   ============================================================ */
+function severityColor(pass) {
+  if (pass === true) return 'pass';
+  if (pass === false) return 'fail';
+  return '';
+}
+
+async function runDemoScan() {
+  const input = document.getElementById('scan-input');
+  const btn = document.getElementById('scan-btn');
+  const resultBox = document.getElementById('scan-result');
+  const url = input.value.trim();
+  if (!url) { input.focus(); return; }
+
+  const originalBtnText = btn.textContent;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span> Analizando…';
+  resultBox.classList.remove('show');
+
+  try {
+    const res = await fetch('/api/scan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) throw new Error(data.message || 'No se pudo analizar esa URL.');
+
+    const { domain, summary, categories } = data;
+    const letterColor = { A:'var(--ok)', B:'var(--secondary)', C:'var(--warn)', D:'var(--crit)' }[summary.letter] || 'var(--text-1)';
+
+    resultBox.innerHTML = `
+      <div class="sr-head">
+        <span class="sr-domain">${domain}</span>
+        <div class="sr-score">
+          <span style="font-family:var(--font-mono);font-size:12px;color:var(--text-1)">${summary.passed}/${summary.total} comprobaciones superadas</span>
+          <span class="sr-letter" style="background:${letterColor}22; color:${letterColor}; border:1px solid ${letterColor}55">${summary.letter}</span>
+        </div>
+      </div>
+      <div class="sr-grid">
+        ${categories.slice(0,6).map(c => {
+          const failed = c.results.filter(r => r.pass === false).length;
+          const ok = failed === 0;
+          return `<div class="sr-cat">
+            <div class="cn">${c.icon} ${c.cat}</div>
+            <div class="cv ${ok ? 'pass' : 'fail'}">${ok ? '✓ Sin fallos' : '✗ ' + failed + ' fallo' + (failed>1?'s':'')}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    `;
+    resultBox.classList.add('show');
+    resultBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } catch (err) {
+    resultBox.innerHTML = `<div style="padding:20px; font-size:13.5px; color:var(--crit)">${err.message}</div>`;
+    resultBox.classList.add('show');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalBtnText;
+  }
+}
+
+document.getElementById('scan-btn').addEventListener('click', runDemoScan);
+document.getElementById('scan-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') runDemoScan();
+});
+
+/* ============================================================
+   HEADER SCROLL + SCROLL REVEALS
+   ============================================================ */
+window.addEventListener('scroll', () => {
+  document.getElementById('site-header').classList.toggle('scrolled', window.scrollY > 8);
+}, { passive: true });
+
+window.addEventListener('load', () => {
+  if (window.gsap && window.ScrollTrigger) {
+    gsap.registerPlugin(ScrollTrigger);
+    gsap.utils.toArray('.cat-card').forEach((card, i) => {
+      gsap.fromTo(card, {opacity:0, y:16}, {
+        opacity:1, y:0, duration:.5, ease:'power2.out',
+        scrollTrigger:{ trigger: card, start:'top 90%' }, delay: (i % 3) * 0.06,
+      });
+    });
+    gsap.utils.toArray('.price-card').forEach((card, i) => {
+      gsap.fromTo(card, {opacity:0, y:18}, {
+        opacity:1, y:0, duration:.55, ease:'power2.out',
+        scrollTrigger:{ trigger: card, start:'top 88%' }, delay: i * 0.08,
+      });
+    });
+    gsap.utils.toArray('.metric').forEach((m, i) => {
+      gsap.fromTo(m, {opacity:0, y:14}, {
+        opacity:1, y:0, duration:.5, ease:'power2.out',
+        scrollTrigger:{ trigger:'#metrics', start:'top 85%' }, delay: i * 0.07,
+      });
+    });
+    gsap.utils.toArray('.plan-step').forEach((s, i) => {
+      gsap.fromTo(s, {opacity:0, y:16}, {
+        opacity:1, y:0, duration:.5, ease:'power2.out',
+        scrollTrigger:{ trigger: s, start:'top 88%' }, delay: i * 0.1,
+      });
+    });
+  }
+});
+</script>
+
+</body>
+</html>
