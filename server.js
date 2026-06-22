@@ -57,6 +57,10 @@ app.use('/api', router);
 app.use('/api', monitoringRouter);
 app.use('/api', checkoutRouter);
 
+// Rutas principales
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'landing.html')));
+app.get('/app', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+
 app.use(express.static(path.join(__dirname, 'public'), {
   maxAge: '1h',
   setHeaders: (res, filePath) => {
