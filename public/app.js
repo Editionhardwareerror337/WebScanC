@@ -15,6 +15,25 @@ function escapeHTML(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
+// Convierte fix instructions (markdown reducido) a HTML seguro con bloques de código
+function renderFix(text) {
+  if (!text) return '';
+  let html = escapeHTML(text);
+  // Bloques de código ```...```
+  html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) =>
+    `<pre class="fix-code"><code>${code.trim()}</code></pre>`
+  );
+  // Inline code `...`
+  html = html.replace(/`([^`\n]+)`/g, '<code class="fix-inline">$1</code>');
+  // **negrita**
+  html = html.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
+  // Doble salto = nuevo párrafo
+  html = html.replace(/\n\n/g, '</p><p>');
+  // Salto simple = <br>
+  html = html.replace(/\n/g, '<br>');
+  return `<p>${html}</p>`;
+}
+
 const PLANS = {
   free:   {name:'Free',   maxScans:3,  pdf:false,monitoring:false,whitelabel:false,domains:1,  api:false,saas:false},
   pro:    {name:'Pro',    maxScans:Infinity,pdf:true, monitoring:true, whitelabel:false,domains:10, api:false,saas:true},
@@ -183,7 +202,7 @@ async function startScan(inputId,resultId) {
   const apiPromise = fetch('/api/scan', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({url})
+    body: JSON.stringify({url, license: getLicenseCode()})
   }).then(r=>r.json()).catch(e=>({error:true,message:e.message}));
 
   for(const[sym,cls,txt] of steps){
@@ -363,10 +382,14 @@ async function renderResultsUI(container, domain, results, sc, isDemo, animate){
           <div class="check-row" style="animation-delay:${idx*30}ms">
             <span class="cr-icon">${icon}</span>
             <div class="cr-main">
-              <div class="cr-name">${escapeHTML(r.name)}<span class="cr-severity sev-${sevCls}">${sevTxt}</span></div>
+              <div class="cr-name">
+                ${escapeHTML(r.name)}
+                <span class="cr-severity sev-${sevCls}">${sevTxt}</span>
+                ${r.owasp ? `<span class="cr-owasp">${escapeHTML(r.owasp)}</span>` : ''}
+              </div>
               <div class="cr-desc">${escapeHTML(r.desc)}</div>
               <div class="cr-val ${valCls}">${escapeHTML(r.value)}</div>
-              ${r.pass===false&&r.fix?`<div class="cr-fix">💡 Cómo solucionarlo ▾</div><div class="cr-fix-detail">${escapeHTML(r.fix)}</div>`:''}
+              ${r.pass===false&&r.fix?`<div class="cr-fix">💡 Cómo solucionarlo ▾</div><div class="cr-fix-detail">${renderFix(r.fix)}</div>`:''}
             </div>
           </div>`;}).join('')}
       </div>`;

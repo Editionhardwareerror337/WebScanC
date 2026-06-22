@@ -3,6 +3,7 @@ const rateLimit = require('express-rate-limit');
 const router = express.Router();
 const { runScan } = require('../services/scanner');
 const { validateLicense, markUsed } = require('../services/licenses');
+const { checkFreeLimit, incrementFreeUsage } = require('../services/db');
 
 function validateURL(input) {
   if (!input || typeof input !== 'string') return null;
@@ -85,6 +86,36 @@ router.post('/scan', async (req, res) => {
       error: true,
       message: 'URL no válida. Usa un formato como https://tuempresa.com (no se permiten IPs privadas).',
     });
+  }
+
+  // Control de uso gratuito por IP
+  // Si el cliente envía un código de licencia válido en el body, saltamos el límite
+  const licenseCode = req.body?.license ? String(req.body.license).trim().toUpperCase() : null;
+  let hasLicense = false;
+
+  if (licenseCode) {
+    if (DEMO_CODES[licenseCode]) {
+      hasLicense = true;
+    } else {
+      try {
+        const lic = await validateLicense(licenseCode);
+        if (lic) hasLicense = true;
+      } catch {}
+    }
+  }
+
+  if (!hasLicense) {
+    const ip = req.ip || req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 'unknown';
+    const { allowed, remaining } = await checkFreeLimit(ip);
+    if (!allowed) {
+      return res.status(429).json({
+        error: true,
+        limitReached: true,
+        message: `Has usado los ${3} análisis gratuitos de este mes. Activa un plan para continuar.`,
+      });
+    }
+    // Incrementamos antes de lanzar el scan para evitar abusos por peticiones paralelas
+    await incrementFreeUsage(ip);
   }
 
   // Timeout de seguridad: si el escaneo tarda mas de 45s, abortar con error claro

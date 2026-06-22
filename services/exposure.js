@@ -78,6 +78,21 @@ async function checkExposure(url) {
   }
   out.dir_list = { pass: !listable, value: listable ? `${listable} con listado activo` : 'Desactivado' };
 
+  // Archivos de backup expuestos
+  const domain = base.hostname.replace('www.', '').split('.')[0];
+  const BACKUP_PATHS = [
+    `/${domain}.sql`, `/${domain}.zip`, `/${domain}.tar.gz`,
+    '/backup.sql', '/backup.zip', '/db.sql', '/database.sql',
+    '/dump.sql', '/site.zip', '/www.zip', '/html.zip',
+    `/${domain}_backup.zip`, '/backup/', '/backups/',
+  ];
+  let backupFound = null;
+  for (const p of BACKUP_PATHS) {
+    const r = await safe(`${origin}${p}`);
+    if (r.status === 200 && r.text.length > 100) { backupFound = p; break; }
+  }
+  out.backup_exposed = { pass: !backupFound, value: backupFound ? `${backupFound} accesible (CRÍTICO)` : 'Sin backups expuestos' };
+
   return out;
 }
 

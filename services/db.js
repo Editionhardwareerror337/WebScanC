@@ -91,6 +91,17 @@ async function initDB() {
     `);
     await p.query(`CREATE INDEX IF NOT EXISTS idx_scan_history_domain ON scan_history(monitored_domain_id);`);
 
+    // Control de uso gratuito: máximo 3 análisis por IP y mes natural
+    await p.query(`
+      CREATE TABLE IF NOT EXISTS free_usage (
+        ip TEXT NOT NULL,
+        month TEXT NOT NULL,
+        count INTEGER NOT NULL DEFAULT 1,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        PRIMARY KEY (ip, month)
+      );
+    `);
+
     console.log('✅ Base de datos lista (tablas verificadas)');
     return true;
   } catch (err) {
@@ -99,4 +110,45 @@ async function initDB() {
   }
 }
 
-module.exports = { getPool, initDB };
+// Comprueba si una IP puede hacer un análisis gratuito este mes.
+// Devuelve { allowed: true, remaining: N } o { allowed: false, remaining: 0 }
+const FREE_LIMIT = 3;
+
+async function checkFreeLimit(ip) {
+  const p = getPool();
+  if (!p) return { allowed: true, remaining: FREE_LIMIT }; // sin BD: no limitar
+
+  const month = new Date().toISOString().slice(0, 7); // "2026-06"
+  try {
+    const { rows } = await p.query(
+      'SELECT count FROM free_usage WHERE ip = $1 AND month = $2',
+      [ip, month]
+    );
+    const used = rows[0]?.count ?? 0;
+    const remaining = Math.max(0, FREE_LIMIT - used);
+    return { allowed: used < FREE_LIMIT, remaining };
+  } catch (err) {
+    console.error('⚠️  Error comprobando free_usage:', err.message);
+    return { allowed: true, remaining: FREE_LIMIT }; // en caso de error: no bloquear
+  }
+}
+
+async function incrementFreeUsage(ip) {
+  const p = getPool();
+  if (!p) return;
+
+  const month = new Date().toISOString().slice(0, 7);
+  try {
+    await p.query(`
+      INSERT INTO free_usage (ip, month, count, updated_at)
+      VALUES ($1, $2, 1, now())
+      ON CONFLICT (ip, month) DO UPDATE
+        SET count = free_usage.count + 1,
+            updated_at = now()
+    `, [ip, month]);
+  } catch (err) {
+    console.error('⚠️  Error incrementando free_usage:', err.message);
+  }
+}
+
+module.exports = { getPool, initDB, checkFreeLimit, incrementFreeUsage };

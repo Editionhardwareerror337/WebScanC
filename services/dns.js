@@ -43,6 +43,11 @@ async function checkDNS(domain) {
   const hasKey = (dnskey?.Answer || []).some(a => a.type === 48);
   out.dnssec = { pass: hasKey, value: hasKey ? 'DNSKEY presente' : 'No configurado' };
 
+  // CAA — Certificate Authority Authorization
+  const caaRes = await q(domain, 'CAA');
+  const caaRecords = (caaRes?.Answer || []).filter(a => a.type === 257);
+  out.caa = { pass: caaRecords.length > 0, value: caaRecords.length > 0 ? `${caaRecords.length} registro(s) CAA` : 'Sin registro CAA' };
+
   return out;
 }
 
